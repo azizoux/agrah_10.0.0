@@ -1,15 +1,13 @@
 "use client";
-import { getPartyId } from "@/actions";
+import { getPartyId, updateParty, updatePion } from "@/actions";
 import Pion from "@/app/components/Pion";
 import Wrapper from "@/app/components/Wrapper";
-import { data } from "@/constants/data";
-import { Party, PionType } from "@/types";
+
+import { Party } from "@/types";
 import { useEffect, useState } from "react";
 
 const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
-  const [users, setUsers] = useState(data.users);
   const [party, setParty] = useState<Party | undefined>(undefined);
-  const [pions, setPions] = useState<PionType[]>([]);
   const fetchParty = async () => {
     try {
       const { partyId } = await params;
@@ -21,44 +19,61 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
       console.error(error);
     }
   };
-  const ajustPionsTypes = () => {
-    const newPions = [];
-    for (const pion of data.pions) {
-      newPions.push({ ...pion, partyId: 0 });
-    }
-    setPions(newPions);
-  };
+
   useEffect(() => {
-    ajustPionsTypes();
     fetchParty();
   }, []);
+
   const handleClick = async (id: number) => {
-    const newPions = [...pions];
-    const newParty = { ...party };
-    const pionSelected = newPions.find((p) => p.id === id);
-    const userTour = users.find((u) => u.id === party.tourId);
-    if (pionSelected && userTour && party.isFilling) {
-      pionSelected.color = userTour.color;
-      const pionIndex = newPions.findIndex((p) => p.id === id);
-      newPions[pionIndex] = pionSelected;
-      newParty.tourId === 1 ? (newParty.tourId = 2) : (newParty.tourId = 1);
-      // await putPion(pionSelected, userTour.id);
-      setParty(newParty);
-      setPions(newPions);
-      // const userFirstPions = await getUserPionById(1);
-      // const userSecondPions = await getUserPionById(2);
-      // if (userFirstPions?.length === 12 && userSecondPions?.length === 12) {
-      //   newParty.isFilling = false;
-      //   newParty.isMoving = true;
-      //   setParty(newParty);
-      // }
+    if (party) {
+      const newParty = { ...party };
+      const users = [party.player1, party.player2];
+      const userTour = users.find((u) => u.id === party.tourId);
+      const pionSelected = party.pions.find((p) => p.id === id);
+      if (party.isFilling && userTour && pionSelected) {
+        const newTabs = [...party.pions];
+        const pionIndex = newTabs.findIndex((p) => p.id === id);
+        newTabs[pionIndex].color = userTour.color;
+        pionSelected.color = userTour.color;
+        newParty.tourId === newParty.player1Id
+          ? (newParty.tourId = newParty.player2Id)
+          : (newParty.tourId = newParty.player1Id);
+
+        const isCreated = await updatePion(pionSelected, userTour.id);
+        if (isCreated) {
+          const nbrePionPlayer1 = party.pions.filter(
+            (p) => p.color === party.player1.color
+          ).length;
+          const nbrePionPlayer2 = party.pions.filter(
+            (p) => p.color === party.player2.color
+          ).length;
+          if (nbrePionPlayer1 === 12 && nbrePionPlayer2 === 12) {
+            newParty.isFilling = false;
+            newParty.isMoving = true;
+          }
+          await updateParty(
+            newParty.id,
+            newParty.isFilling,
+            newParty.isMoving,
+            newParty.isCutting,
+            newParty.tourId
+          );
+          setParty(newParty);
+        }
+      }
+      if (party.isMoving) {
+        console.log("mouving pion", id);
+      }
+      if (party.isCutting) {
+        console.log("mouving pion", id);
+      }
     }
   };
 
   return (
     <Wrapper>
       <div className="flex w-[90%] sm:w-2xl justify-center m-auto">
-        <div className="flex  w-xl  justify-between  mt-2">
+        <div className="flex  w-xl  justify-between items-center  mb-1 border border-base-300 rounded-2xl p-4">
           <div>
             <div
               className="text-lg font-bold uppercase"
@@ -109,12 +124,16 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
           </div>
         </div>
       </div>
-      <div className="flex  w-full  justify-center mt-2">
+      <div className="flex  w-full  justify-center  mt-2">
         <div className="grid grid-cols-5 space-x-1 space-y-1.5">
-          {pions &&
-            pions.map((item, index) => (
-              <Pion key={index} pion={item} handleClick={handleClick} />
-            ))}
+          {party?.pions.map((item, index) => (
+            <Pion
+              key={index}
+              pion={item}
+              handleClick={handleClick}
+              index={index}
+            />
+          ))}
         </div>
       </div>
     </Wrapper>

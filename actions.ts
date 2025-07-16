@@ -1,9 +1,9 @@
 "use server";
 import { randomBytes } from "crypto";
-import { data } from "./constants/data";
-import { User } from "./generated/prisma";
+import { Pion, User } from "./generated/prisma";
 import prisma from "./lib/prisma";
-import { Party, PionType } from "./types";
+import { Party } from "./types";
+import { tabs } from "./constants/tab";
 
 export async function getUserByUsername(username: string) {
   if (!username) return;
@@ -83,14 +83,50 @@ export async function createParty(username: string, player2: string) {
         ownerId: existingUser.id,
         player1Id: existingUser.id,
         player2Id: invitedPlayer.id,
+        isFilling: true,
+        tourId: existingUser.id,
       },
     });
+    if (party) {
+      for (const pion of tabs) {
+        const cretedPion = await prisma.pion.create({
+          data: {
+            abs: pion.abs,
+            ord: pion.ord,
+            color: pion.color,
+            partyId: party.id,
+          },
+        });
+      }
+    }
     return true;
   } catch (error) {
     console.error(error);
   }
 }
-
+export async function updateParty(
+  partyId: number,
+  isFilling: boolean,
+  isMoving: boolean,
+  isCutting: boolean,
+  tourId: number
+) {
+  try {
+    const updatedParty = await prisma.party.update({
+      where: {
+        id: partyId,
+      },
+      data: {
+        isFilling,
+        isMoving,
+        isCutting,
+        tourId,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
 export async function listParty(
   username: string
 ): Promise<Party[] | undefined> {
@@ -105,6 +141,7 @@ export async function listParty(
       include: {
         player1: true,
         player2: true,
+        pions: true,
       },
     });
 
@@ -121,6 +158,7 @@ export async function getPartyId(partyId: number): Promise<Party | undefined> {
       include: {
         player1: true,
         player2: true,
+        pions: true,
       },
     });
     if (!party) {
@@ -129,5 +167,45 @@ export async function getPartyId(partyId: number): Promise<Party | undefined> {
     return party;
   } catch (error) {
     console.error(error);
+  }
+}
+export async function createPion(pion: Pion, userTourId: number) {
+  try {
+    const cretedPion = await prisma.pion.create({
+      data: {
+        abs: pion.abs,
+        ord: pion.ord,
+        color: pion.color,
+        partyId: pion.partyId,
+      },
+    });
+    if (!cretedPion) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+export async function updatePion(pion: Pion, userTourId: number) {
+  try {
+    const cretedPion = await prisma.pion.update({
+      where: {
+        id: pion.id,
+      },
+      data: {
+        abs: pion.abs,
+        ord: pion.ord,
+        color: pion.color,
+        partyId: pion.partyId,
+      },
+    });
+    if (!cretedPion) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.log(error);
   }
 }
