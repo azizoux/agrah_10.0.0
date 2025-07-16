@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  password   String
+  color      String
+  pionNumber Int      @default(0)
+  score      Int      @default(0)
+  gameLimit  Int      @default(7)
+  winNumber  Int      @default(0)
+  lostNumber Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  ownedParties   Party[]       @relation("Owner")
+  playedParties1 Party[]       @relation("Player1")
+  playedParties2 Party[]       @relation("Player2")
+  visitorRecords VisitorUser[] @relation("UserVisitors")
+}
+
+model Party {
+  id         Int      @id @default(autoincrement())
+  name       String
+  inviteCode String   @unique
+  isFilling  Boolean  @default(false)
+  isMoving   Boolean  @default(false)
+  isCutting  Boolean  @default(false)
+  tourId     Int      @default(1)
+  tourNumber Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Foreign keys
+  ownerId   Int
+  player1Id Int
+  player2Id Int
+
+  // Relations
+  owner    User          @relation("Owner", fields: [ownerId], references: [id])
+  player1  User          @relation("Player1", fields: [player1Id], references: [id])
+  player2  User          @relation("Player2", fields: [player2Id], references: [id])
+  pions    Pion[]
+  visitors VisitorUser[] @relation("PartyVisitors")
+}
+
+model Pion {
+  id    Int    @id @default(autoincrement())
+  abs   Int
+  ord   Int
+  color String @default("#e5e7eb")
+
+  partyId Int
+  party   Party @relation(fields: [partyId], references: [id])
+}
+
+model VisitorUser {
+  id      String @id @default(uuid())
+  userId  Int
+  partyId Int
+
+  user  User  @relation("UserVisitors", fields: [userId], references: [id])
+  party Party @relation("PartyVisitors", fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, partyId])
+}
