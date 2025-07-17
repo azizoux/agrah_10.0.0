@@ -14,7 +14,7 @@ const Pion = ({ pion, index, handleClick }: PionProps) => {
   return (
     <div onClick={() => pionClick(pion.id)}>
       <button
-        className={`btn rounded-full border border-base-500  w-20 h-20  p-4 shadow text-2xl font-bold text-white`}
+        className={`btn rounded-full border border-base-500 w-16 h-16  p-4 shadow text-2xl font-bold text-white`}
         style={{ background: pion.color, border: "2px solid black" }}
       >
         {index + 1}

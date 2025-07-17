@@ -50,6 +50,7 @@ export default function Home() {
   useEffect(() => {
     fetchUsers();
     fetchParties();
+    localStorage.setItem("username", "azizoux");
   }, []);
   console.log(parties);
 
@@ -57,7 +58,7 @@ export default function Home() {
     <Wrapper>
       <div className="flex flex-col space-y-4">
         <h1 className="font-bild text-lg">Mes Parties</h1>
-        <div className="grid md:grid-cols-4 gap-4">
+        <div className="grid md:grid-cols-3 gap-4">
           <div
             className="cursor-pointer border border-accent flex justify-center items-center rounded-xl flex-col p-5"
             onClick={() =>

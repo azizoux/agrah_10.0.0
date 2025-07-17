@@ -4,10 +4,29 @@ import Pion from "@/app/components/Pion";
 import Wrapper from "@/app/components/Wrapper";
 
 import { Party } from "@/types";
+import {
+  getCurrentUser,
+  getEmptyNearCases,
+  getNearCases,
+  getNotEmptyCases,
+  getPionIndexById,
+  getPlayerPions,
+  getSecondUser,
+  getUserTour,
+  isAligned,
+  isAlignedX,
+  isAlignedY,
+  isEmpty,
+  isTitike,
+  isUserTour,
+  isWinAlignedX,
+  togglePlayerTour,
+} from "@/utils/agrah";
 import { useEffect, useState } from "react";
 
 const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
   const [party, setParty] = useState<Party | undefined>(undefined);
+  const [username, setUsername] = useState("");
   const fetchParty = async () => {
     try {
       const { partyId } = await params;
@@ -22,61 +41,78 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
 
   useEffect(() => {
     fetchParty();
+    const uname = localStorage.getItem("username");
+    if (uname) setUsername(uname);
   }, []);
+  console.log("current user:", username);
 
   const handleClick = async (id: number) => {
     if (party) {
-      const newParty = { ...party };
-      const users = [party.player1, party.player2];
-      const userTour = users.find((u) => u.id === party.tourId);
+      let newParty = { ...party };
+      const currentUser = getCurrentUser(username, party);
+      const secondUser = getSecondUser(username, party);
+      const userTour = getUserTour(party);
+      const pionIndex = getPionIndexById(id, party);
       const pionSelected = party.pions.find((p) => p.id === id);
-      if (party.isFilling && userTour && pionSelected) {
-        const newTabs = [...party.pions];
-        const pionIndex = newTabs.findIndex((p) => p.id === id);
-        newTabs[pionIndex].color = userTour.color;
-        pionSelected.color = userTour.color;
-        newParty.tourId === newParty.player1Id
-          ? (newParty.tourId = newParty.player2Id)
-          : (newParty.tourId = newParty.player1Id);
+      console.log("selected pion:", pionSelected, id);
 
-        const isCreated = await updatePion(pionSelected, userTour.id);
-        if (isCreated) {
-          const nbrePionPlayer1 = party.pions.filter(
-            (p) => p.color === party.player1.color
-          ).length;
-          const nbrePionPlayer2 = party.pions.filter(
-            (p) => p.color === party.player2.color
-          ).length;
-          if (nbrePionPlayer1 === 12 && nbrePionPlayer2 === 12) {
+      if (
+        party.isFilling &&
+        currentUser &&
+        secondUser &&
+        pionSelected &&
+        userTour
+      ) {
+        if (
+          !isEmpty(id, party) ||
+          isAligned(id, currentUser.id, party) ||
+          !isUserTour(username, party)
+        ) {
+          console.log("La case occupé ou alignement non autorisé!");
+          //   playSound(alarmSounds, 500);
+          return;
+        } else {
+          newParty.pions[pionIndex - 1].color = currentUser.color;
+          if (
+            getPlayerPions(currentUser.id, party).length === 12 &&
+            getPlayerPions(secondUser.id, party).length === 12
+          ) {
             newParty.isFilling = false;
             newParty.isMoving = true;
+            console.log("+++++++Fin des depots des pions++++++++++", party);
           }
-          await updateParty(
-            newParty.id,
-            newParty.isFilling,
-            newParty.isMoving,
-            newParty.isCutting,
-            newParty.tourId
-          );
-          setParty(newParty);
+          newParty = togglePlayerTour(newParty);
+          setUsername(username === "azizoux" ? "haroun" : "azizoux");
+          //   playSound(puttingSounds, 500);
+          const isUpdated = await updatePion(pionSelected, userTour.id);
+          if (isUpdated) {
+            await updateParty(
+              newParty.id,
+              newParty.isFilling,
+              newParty.isMoving,
+              newParty.isCutting,
+              newParty.tourId
+            );
+            setParty(newParty);
+          }
         }
       }
       if (party.isMoving) {
-        console.log("mouving pion", id);
+        console.log("pion index", isTitike(id, 1, party), id);
       }
       if (party.isCutting) {
-        console.log("mouving pion", id);
+        console.log("pion index", getPionIndexById(id, party));
       }
     }
   };
 
   return (
     <Wrapper>
-      <div className="flex w-[90%] sm:w-2xl justify-center m-auto">
+      <div className="flex w-full sm:w-lg justify-center m-auto">
         <div className="flex  w-xl  justify-between items-center  mb-1 border border-base-300 rounded-2xl p-4">
           <div>
             <div
-              className="text-lg font-bold uppercase"
+              className="text-sm sm:text-lg font-bold uppercase"
               style={{ color: party?.player1.color }}
             >
               {party?.player1.username}
@@ -84,7 +120,7 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
             <div>
               <span className="font-semibold">Score:</span>{" "}
               <span
-                className="text-xl font-bold text-white rounded-full p-1"
+                className="text-sm sm:text-xl font-bold text-white rounded-full p-1"
                 style={{ background: party?.player1.color }}
               >
                 {party?.player1.score}
