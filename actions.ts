@@ -1,9 +1,34 @@
 "use server";
 import { randomBytes } from "crypto";
-import { Pion, User } from "./generated/prisma";
+import { Pion, User } from "@prisma/client";
 import prisma from "./lib/prisma";
 import { Party } from "./types";
 import { tabs } from "./constants/tab";
+
+export async function login(
+  username: string,
+  password: string
+): Promise<User | undefined> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        username,
+      },
+      include: {
+        ownedParties: true,
+        playedParties1: true,
+        playedParties2: true,
+      },
+    });
+    const isValidPassword = user?.password === password;
+    if (!user || !isValidPassword) {
+      throw new Error("User not found");
+    }
+    return user;
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 export async function getUserByUsername(username: string) {
   if (!username) return;
@@ -144,10 +169,20 @@ export async function listParty(
         pions: true,
       },
     });
-
-    return parties;
+    const invitedParties = await prisma.party.findMany({
+      where: {
+        player2Id: existingUser.id,
+      },
+      include: {
+        player1: true,
+        player2: true,
+        pions: true,
+      },
+    });
+    return [...parties, ...invitedParties];
   } catch (error) {
     console.error(error);
+    return undefined;
   }
 }
 

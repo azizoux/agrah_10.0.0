@@ -1,9 +1,15 @@
-import { Pion, Party as PrismaParty, User } from "./generated/prisma";
+import { Pion, Party as PrismaParty, User as PrismaUser } from "@prisma/client";
 
 export interface Party extends PrismaParty {
   player1: User;
   player2: User;
   pions: Pion[];
+}
+
+export interface User extends PrismaUser {
+  ownedParties: Party;
+  playedParties1: Party;
+  playedParties2: Party;
 }
 
 export type PionType = {
@@ -13,12 +19,7 @@ export type PionType = {
   color: string;
   partyId: number;
 };
-// export type party = {
-//   isFilling: boolean;
-//   isMoving: boolean;
-//   isCutting: boolean;
-//   tourId: number;
-//   tourNumber: number;
-//   selected: string;
-//   firstPlayer: number;
-// };
+export interface OnlineUser {
+  sockedId: string;
+  username: string;
+}

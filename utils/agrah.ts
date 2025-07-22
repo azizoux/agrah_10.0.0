@@ -1,4 +1,4 @@
-import { Pion } from "@/generated/prisma";
+import { Pion } from "@prisma/client";
 import { Party } from "@/types";
 
 export function getPionIndexById(pionId: number, party: Party) {
@@ -350,9 +350,10 @@ export function getUserTour(party: Party) {
   const userTour = users.find((u) => u.id === party.tourId);
   return userTour;
 }
-export function isUserTour(username: string, party: Party) {
+export function isUserTour(party: Party) {
   const users = [party.player1, party.player2];
-  const userTour = users.find((u) => u.username === username);
+  const localUserName = localStorage.getItem("username");
+  const userTour = users.find((u) => u.username === localUserName);
   if (userTour) {
     return userTour.id === party.tourId;
   }
