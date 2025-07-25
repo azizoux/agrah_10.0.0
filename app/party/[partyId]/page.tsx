@@ -1,44 +1,42 @@
 "use client";
-import { getPartyId, updateParty, updatePion } from "@/actions";
+import { getPartyId, updateParty, updatePion, updateUser } from "@/actions";
 import Pion from "@/app/components/Pion";
 import Wrapper from "@/app/components/Wrapper";
 import { useSocket } from "@/app/context/SocketContext";
 
-import { Party } from "@/types";
 import {
   getCurrentUser,
   getEmptyNearCases,
-  getNearCases,
-  getNotEmptyCases,
   getPionIndexById,
   getPlayerPions,
   getSecondUser,
   getUserTour,
   isAligned,
-  isAlignedX,
-  isAlignedY,
   isEmpty,
   isTitike,
   isUserTour,
   isWinAligned,
-  isWinAlignedX,
   togglePlayerTour,
 } from "@/utils/agrah";
+import { OctagonX } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
   const [selectedPionIndex, setSelectedPionIndex] = useState(0);
-  const { party, setParty, socket, isConnected, username } = useSocket();
+  const { party, setParty, socket, user } = useSocket();
 
   const fetchParty = async () => {
     try {
       const { partyId } = await params;
-      if (!party) {
-        const fetchedParty = await getPartyId(Number(partyId));
-        if (fetchedParty) {
-          setParty(fetchedParty);
-          socket?.emit("sendParty", fetchedParty);
-        }
+      const fetchedParty = await getPartyId(Number(partyId));
+      if (fetchedParty) {
+        setParty(fetchedParty);
+        socket?.emit("joinParty", fetchedParty.id);
+        // Envoyer un message à cette room
+        socket?.emit("sendParty", {
+          roomId: fetchedParty.id,
+          data: fetchedParty,
+        });
       }
     } catch (error) {
       console.error(error);
@@ -54,14 +52,19 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
       console.log("Party not found error...");
       return;
     }
+    console.log(user);
+    if (!user) {
+      console.log("User not connected...");
+      return;
+    }
     let newParty = { ...party };
     const pionSelected = newParty.pions.find((p) => p.id === id);
     if (!pionSelected) {
       console.log("Pion selected not found error...");
       return;
     }
-    const currentUser = getCurrentUser(username, party);
-    const secondUser = getSecondUser(username, party);
+    const currentUser = getCurrentUser(user.username, party);
+    const secondUser = getSecondUser(user.username, party);
     if (!currentUser || !secondUser) {
       console.log("Users not found error...");
       return;
@@ -101,9 +104,13 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
           newParty.isFilling,
           newParty.isMoving,
           newParty.isCutting,
-          newParty.tourId
+          newParty.tourId,
+          newParty.tourNumber
         );
-        socket?.emit("sendParty", newParty);
+        socket?.emit("sendParty", {
+          roomId: newParty.id,
+          data: newParty,
+        });
       }
     }
     if (party.isMoving) {
@@ -118,7 +125,6 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
         return;
       }
       const currentUserPions = getPlayerPions(currentUser.id, party);
-      console.log("currentUserPions", currentUserPions);
 
       if (!currentUserPions.includes(pionIndex + 1) && !selectedPionIndex) {
         console.log("Le pion " + id + " choisit n'est pas votre pions");
@@ -132,32 +138,44 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
       }
       if (selectedPionIndex === 0 && !isEmpty(id, newParty)) {
         newParty.pions[pionIndex].color = "orange";
-        setSelectedPionIndex(pionIndex);
+        setSelectedPionIndex(pionIndex + 1);
         // playSound([moveSounds[0]], 1000);
-        socket?.emit("sendParty", newParty);
+        socket?.emit("sendParty", {
+          roomId: newParty.id,
+          data: newParty,
+        });
         return;
       } else if (selectedPionIndex && isEmpty(id, newParty)) {
         let nearEmptyPions = getEmptyNearCases(id, newParty);
-        if (nearEmptyPions.includes(selectedPionIndex + 1)) {
+        if (nearEmptyPions.includes(selectedPionIndex)) {
           newParty.pions[pionIndex].color = currentUser.color;
-          newParty.pions[selectedPionIndex].color = "gray";
+          newParty.pions[selectedPionIndex - 1].color = "gray";
           setSelectedPionIndex(0);
           if (isWinAligned(id, currentUser.id, newParty)) {
             newParty.isMoving = false;
             newParty.isCutting = true;
             //   playSound(fireSounds, 1500);
-            socket?.emit("sendParty", newParty);
+            socket?.emit("sendParty", {
+              roomId: newParty.id,
+              data: newParty,
+            });
             return;
           }
           // playSound([moveSounds[1]], 1000);
           newParty = togglePlayerTour(newParty);
-          socket?.emit("sendParty", newParty);
+          socket?.emit("sendParty", {
+            roomId: newParty.id,
+            data: newParty,
+          });
         }
       } else {
-        newParty.pions[selectedPionIndex].color = currentUser.color;
+        newParty.pions[selectedPionIndex - 1].color = currentUser.color;
         setSelectedPionIndex(0);
         // playSound(alarmSounds, 500);
-        socket?.emit("sendParty", newParty);
+        socket?.emit("sendParty", {
+          roomId: newParty.id,
+          data: newParty,
+        });
       }
     }
     if (party.isCutting) {
@@ -174,20 +192,110 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
       newParty.isCutting = false;
       //   playSound(cutSounds, 1500);
       newParty = togglePlayerTour(newParty);
-      socket?.emit("sendParty", newParty);
+      socket?.emit("sendParty", {
+        roomId: newParty.id,
+        data: newParty,
+      });
     }
+  };
+  const handleGameOver = async () => {
+    const confirmRunning = confirm("Voulez vous fuir la partie?");
+    if (!confirmRunning) return;
+    if (!party) {
+      console.log("Party not found error...");
+      return;
+    }
+    let newParty = { ...party };
+    let points = 0;
+    if (!user) {
+      console.log("User not connected...");
+      return;
+    }
+    const currentUser = getCurrentUser(user.username, party);
+    const secondUser = getSecondUser(user.username, party);
+    if (!currentUser || !secondUser) {
+      console.log("Users not found error...");
+      return;
+    }
+    if (!isUserTour(newParty)) {
+      console.log("Its not tour to player...");
+      return;
+    }
+    points = secondUser.score + 1;
+    let pionNumber = getPlayerPions(secondUser.id, newParty).length;
+    // console.log("pionNumber", pionNumber);
+    if (pionNumber === 12 || newParty.isFilling === true) {
+      points++;
+    }
+    secondUser.score = points;
+    secondUser.winNumber++;
+    newParty.tourNumber++;
+    currentUser.lostNumber++;
+    newParty.tourId = secondUser.id;
+    newParty.isFilling = true;
+    newParty.isMoving = false;
+    newParty.isCutting = false;
+    for (let i = 0; i < 30; i++) {
+      newParty.pions[i].color = "gray";
+      await updatePion(newParty.pions[i], currentUser.id);
+    }
+
+    if (secondUser.score >= currentUser.gameLimit) {
+      currentUser.gameLimit--;
+      secondUser.score = 0;
+      currentUser.score = 0;
+    }
+    if (currentUser.gameLimit === 0) {
+      currentUser.gameLimit = 7;
+      secondUser.gameLimit = 7;
+      newParty.tourNumber = 1;
+      console.log("Le joueur " + currentUser.username + " a un djidji !!!");
+    }
+    await updateParty(
+      newParty.id,
+      newParty.isFilling,
+      newParty.isMoving,
+      newParty.isCutting,
+      newParty.tourId,
+      newParty.tourNumber
+    );
+    await updateUser(
+      currentUser.id,
+      currentUser.score,
+      currentUser.gameLimit,
+      currentUser.winNumber
+    );
+    await updateUser(
+      secondUser.id,
+      secondUser.score,
+      secondUser.gameLimit,
+      secondUser.winNumber
+    );
+    console.log("Le joueur " + currentUser.username + " a perdu !!!");
+    socket?.emit("sendParty", {
+      roomId: newParty.id,
+      data: newParty,
+    });
   };
 
   return (
     <Wrapper>
-      <div className="flex w-full sm:w-lg justify-center m-auto">
-        <div className="flex  w-xl  justify-between items-center  mb-1 border border-base-300 rounded-2xl p-4">
+      <div className="flex flex-col w-full sm:w-lg justify-center m-auto">
+        <div className="flex w-xl  justify-between items-center  mb-1 border border-base-300 rounded-2xl p-4">
           <div>
             <div
               className="text-sm sm:text-lg font-bold uppercase"
               style={{ color: party?.player1.color }}
             >
-              {party?.player1.username}
+              <span>{party?.player1.username}</span>
+              <span>
+                (
+                {
+                  party?.pions.filter((p) => p.color === party?.player1.color)
+                    .length
+                }
+                )
+              </span>
             </div>
             <div>
               <span className="font-semibold">Score:</span>{" "}
@@ -204,17 +312,34 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
             </div>
           </div>
           <div>
-            Tour$:
-            <span className="p-2 rounded-full bg-amber-500 font-semibold text-lg">
-              {party?.tourNumber}{" "}
-            </span>
+            <div className="flex flex-col items-center font-bold ">
+              <span>***Tour de***</span>
+              {party && (
+                <span
+                  className="bg-amber-800 text-white py-1 px-2 rounded-2xl"
+                  style={{
+                    backgroundColor: getUserTour(party)?.color,
+                  }}
+                >
+                  {getUserTour(party)?.username}
+                </span>
+              )}
+            </div>
           </div>
           <div>
             <div
               className="text-lg font-bold uppercase"
               style={{ color: party?.player2.color }}
             >
-              {party?.player2.username}
+              <span>{party?.player2.username}</span>
+              <span>
+                (
+                {
+                  party?.pions.filter((p) => p.color === party?.player2.color)
+                    .length
+                }
+                )
+              </span>
             </div>
             <div>
               <span className="font-semibold">Score:</span>{" "}
@@ -244,6 +369,12 @@ const page = ({ params }: { params: Promise<{ partyId: string }> }) => {
           ))}
         </div>
       </div>
+      <button
+        className="bg-amber-500 p-4 rounded-full shadow-2xl flex justify-center items-center m-auto cursor-pointer mt-4 "
+        onClick={handleGameOver}
+      >
+        <OctagonX className="w-12 h-12" color="white" />
+      </button>
     </Wrapper>
   );
 };

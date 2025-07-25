@@ -3,13 +3,11 @@ import { login } from "@/actions";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { toast } from "react-toastify";
+import { useSocket } from "../context/SocketContext";
 
-interface SignInProps {
-  setUsername: (u: string) => void;
-}
-
-const SignIn = ({ setUsername }: SignInProps) => {
+const SignIn = () => {
   const [loginName, setLoginName] = useState("");
+  const { setUser } = useSocket();
   const [password, setPassword] = useState("");
   const router = useRouter();
   const handleSubmit = async (e: React.ChangeEvent<HTMLFormElement>) => {
@@ -22,7 +20,7 @@ const SignIn = ({ setUsername }: SignInProps) => {
 
         if (user) {
           localStorage.setItem("username", user.username);
-          setUsername(user.username);
+          setUser(user);
           setLoginName("");
           setPassword("");
           toast.success("Logged In success");

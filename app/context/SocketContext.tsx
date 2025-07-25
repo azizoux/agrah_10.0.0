@@ -1,4 +1,6 @@
+import { getUserByUsername } from "@/actions";
 import { OnlineUser, Party } from "@/types";
+import { User } from "@prisma/client";
 import { createContext, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
@@ -8,7 +10,8 @@ interface iSocketContext {
   setParty: (party: Party) => void;
   socket: Socket | null;
   isConnected: boolean;
-  username: string;
+  user: User | null;
+  setUser: (user: User) => void;
 }
 
 export const SocketContext = createContext<iSocketContext | null>(null);
@@ -23,13 +26,24 @@ export const SocketContextProvider = ({
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUser] = useState<OnlineUser[] | null>(null);
   const [party, setParty] = useState<Party | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+
+  const fetchUser = async () => {
+    try {
+      const username = localStorage.getItem("username");
+      if (username) {
+        const localUser = await getUserByUsername(username);
+        setUser(localUser);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
-    const uname = localStorage.getItem("username");
-    if (uname) setUsername(uname);
+    fetchUser();
   }, []);
-  //   useEffect(() => {
-  //     socket?.emit("sendParty", selectedParty);
-  //   }, [selectedParty]);
+
   useEffect(() => {
     const newSocket = io();
     setSocket(newSocket);
@@ -37,6 +51,7 @@ export const SocketContextProvider = ({
       newSocket.disconnect();
     };
   }, [username]);
+
   useEffect(() => {
     if (socket === null) return;
     if (socket.connected) {
@@ -45,10 +60,12 @@ export const SocketContextProvider = ({
 
     function onConnect() {
       setIsConnected(true);
+      console.log("Reconnected...");
     }
 
     function onDisconnect() {
       setIsConnected(false);
+      console.log("Disconnected...");
     }
 
     socket.on("connect", onConnect);
@@ -59,25 +76,26 @@ export const SocketContextProvider = ({
       socket.off("disconnect", onDisconnect);
     };
   }, [socket]);
+
   useEffect(() => {
     if (!isConnected || !socket) return;
     socket?.emit("addNewUser", username);
     socket?.on("getUsers", (response) => {
       setOnlineUser(response);
     });
-    socket?.on("getParty", (response) => {
-      setParty(response);
+    socket?.on("getParty", ({ sender, data }) => {
+      setParty(data);
     });
 
     return () => {
       socket?.off("getUsers", (response) => {
         setOnlineUser(response);
       });
-      socket?.off("getParty", (response) => {
-        setParty(response);
+      socket?.off("getParty", ({ sender, data }) => {
+        setParty(data);
       });
     };
-  }, [isConnected, username, socket]);
+  }, [isConnected, user, socket]);
 
   return (
     <SocketContext.Provider
@@ -87,7 +105,8 @@ export const SocketContextProvider = ({
         setParty,
         socket,
         isConnected,
-        username,
+        user,
+        setUser,
       }}
     >
       {children}

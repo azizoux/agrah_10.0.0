@@ -1,10 +1,15 @@
 "use client";
 
-import { FolderGit2, Layers, X } from "lucide-react";
+import { FolderGit2, Layers, Send, X } from "lucide-react";
 import Wrapper from "./components/Wrapper";
 import { useEffect, useState } from "react";
-import { Pion, User } from "@prisma/client";
-import { createParty, getUserList, listParty } from "@/actions";
+import { User } from "@prisma/client";
+import {
+  addVisitorToParty,
+  createParty,
+  getUserList,
+  listParty,
+} from "@/actions";
 import { toast } from "react-toastify";
 import PartyComponent from "./components/PartyComponent";
 import { Party } from "@/types";
@@ -15,8 +20,8 @@ export default function Home() {
   const [users, setUsers] = useState<User[] | undefined>([]);
   const [parties, setParties] = useState<Party[] | undefined>([]);
   const [username, setUsername] = useState<string>("");
+  const [invitedCode, setInvitedCode] = useState("");
   const [player2, setPlayer2] = useState("");
-  const { onlineUsers } = useSocket();
 
   const fetchUsers = async () => {
     try {
@@ -62,13 +67,41 @@ export default function Home() {
     fetchUsers();
     fetchParties();
   }, [username]);
+  const handleVisitorCodeSubmit = async (
+    inviteCode: string,
+    username: string
+  ) => {
+    try {
+      await addVisitorToParty(inviteCode, username);
+      toast.success("Party ajouté");
+      fetchParties();
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <>
       {username ? (
         <Wrapper>
           <div className="flex flex-col space-y-4">
-            <h1 className="font-bild text-lg">Mes Parties</h1>
+            <div className="flex items-center gap-4">
+              <p className="font-bold">Visiter une Partie:</p>
+              <input
+                type="text"
+                placeholder="Inserer le code ici...."
+                value={invitedCode}
+                onChange={(e) => setInvitedCode(e.target.value)}
+                className="input input-bordered"
+              />
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => handleVisitorCodeSubmit(invitedCode, username)}
+              >
+                <Send className="w-6" />
+              </button>
+            </div>
+
             <div className="grid md:grid-cols-3 gap-4">
               <div
                 className="cursor-pointer border border-accent flex justify-center items-center rounded-xl flex-col p-5"
@@ -122,13 +155,17 @@ export default function Home() {
               {/* Listes des factures */}
               {parties &&
                 parties.map((party, index) => (
-                  <PartyComponent key={index} party={party} />
+                  <PartyComponent
+                    key={index}
+                    party={party}
+                    fetchParties={fetchParties}
+                  />
                 ))}
             </div>
           </div>
         </Wrapper>
       ) : (
-        <SignIn setUsername={setUsername} />
+        <SignIn />
       )}
     </>
   );

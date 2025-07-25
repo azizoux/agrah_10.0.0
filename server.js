@@ -36,9 +36,20 @@ app.prepare().then(() => {
       //   send active users
       io.emit("getUsers", onlineUsers);
     });
-    socket.on("sendParty", (data) => {
-      console.log("userTourId", data.tourId);
-      io.emit("getParty", data);
+    socket.on("joinParty", (roomId) => {
+      socket.join(roomId);
+      console.log(`${socket.id} a rejoint la party ${roomId}`);
+      //   Optionnel : prévenir les autres
+      const joinedUser = onlineUsers.find(
+        (user) => user.socketId === socket.id
+      );
+      io.to(roomId).emit("joinedParty", { joinedUser, roomId });
+    });
+
+    socket.on("sendParty", ({ roomId, data }) => {
+      console.log("received data >>>", data);
+      console.log("received to room >>>", roomId, " by ", socket.id);
+      io.to(roomId).emit("getParty", { sender: socket.id, data });
     });
   });
 
